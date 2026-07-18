@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Ilha das Trinta Moedas — aventura pirata (números até 30)</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#a9dcf0;font-family:system-ui,Arial;touch-action:none}
+  canvas{display:block}
+  #fps{position:fixed;left:10px;top:10px;z-index:9;background:rgba(10,25,40,.72);color:#8ef2b0;font:800 13px monospace;padding:5px 9px;border-radius:8px;pointer-events:none}
+  #hud{position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:9;display:flex;gap:10px;align-items:center;pointer-events:none}
+  #par{background:rgba(20,40,60,.82);color:#dff;font:800 15px system-ui;padding:7px 13px;border-radius:12px}
+  #cont{background:rgba(120,72,20,.92);color:#ffe9b0;font:800 19px system-ui;padding:7px 15px;border-radius:12px;border:2px solid #ffd27a}
+  #balao{position:fixed;left:50%;bottom:82px;transform:translateX(-50%);z-index:9;max-width:min(390px,84vw);background:rgba(255,255,255,.96);color:#173a52;font:600 14px system-ui;padding:9px 14px;border-radius:13px;border:2px solid #2f7d9c;box-shadow:0 6px 16px rgba(0,0,0,.22);text-align:center;pointer-events:none}
+  #balao b.byte{color:#1f9d6b}
+  #joy{position:fixed;right:14px;bottom:14px;z-index:9;display:grid;grid-template-columns:repeat(3,50px);grid-template-rows:repeat(3,50px);gap:5px;opacity:.92}
+  #joy button{border:0;border-radius:12px;background:rgba(20,40,60,.55);color:#fff;font:800 20px system-ui;user-select:none;-webkit-user-select:none;touch-action:none}
+  #joy button:active{background:rgba(20,40,60,.85)}
+  .sp{visibility:hidden}
+  #num{position:fixed;left:50%;top:36%;transform:translate(-50%,-50%);z-index:10;pointer-events:none;font:900 130px system-ui;color:#ffd24a;-webkit-text-stroke:5px #a85f0f;opacity:0;text-shadow:0 8px 24px rgba(0,0,0,.45)}
+  @keyframes pop{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}22%{opacity:1;transform:translate(-50%,-50%) scale(1.18)}70%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-62%) scale(1)}}
+  #num.go{animation:pop 1s ease-out}
+  #fade{position:fixed;inset:0;z-index:13;background:#0a1f30;opacity:0;pointer-events:none;transition:opacity .7s ease}
+  .tela{position:fixed;inset:0;z-index:14;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,#12324a,#0a1f30);color:#fff;text-align:center;padding:20px}
+  .tela.hidden{display:none}
+  .card{background:#fff;color:#173a52;border:5px solid #ffcf5a;border-radius:22px;padding:26px 30px;max-width:440px;box-shadow:0 14px 34px rgba(0,0,0,.45)}
+  .card h1{margin:.1em 0;font-size:26px;color:#123a5a}
+  .card h2{margin:.2em 0;color:#123a5a}
+  .card p{color:#3a5a70;font-weight:600}
+  .card input{font:700 18px system-ui;padding:11px 14px;border:2px solid #b9c6d8;border-radius:12px;width:80%;margin:8px 0;text-align:center}
+  .card button{cursor:pointer;border:0;border-radius:14px;font:800 18px system-ui;padding:13px 26px;margin-top:8px;background:#57e08a;color:#0b2350;box-shadow:0 4px 0 #2e9c5b}
+  .card button:active{transform:translateY(2px);box-shadow:0 1px 0 #2e9c5b}
+  #vnum{font:900 64px system-ui;color:#ffb01f;-webkit-text-stroke:2px #c9821a;margin:0}
+  #vit{background:rgba(8,24,40,.45)}
+  .em{font-size:48px}
+</style>
+<script type="importmap">{"imports":{"three":"./three.module.min.js"}}</script>
+<script src="eduverse-save.js"></script>
+</head><body>
+<div id="fps">FPS: --</div>
+<div id="hud"><span id="par">Parada 1/5</span><span id="cont">🥥 0/6</span></div>
+<div id="num"></div>
+<div id="fade"></div>
+<div id="balao"><b class="byte">Byte 🦜:</b> <span id="fala"></span></div>
+<div id="joy">
+  <span class="sp"></span><button data-k="up">▲</button><span class="sp"></span>
+  <button data-k="left">◀</button><span class="sp"></span><button data-k="right">▶</button>
+  <span class="sp"></span><button data-k="down">▼</button><span class="sp"></span>
+</div>
+<div class="tela" id="start"><div class="card"><div class="em">🏴‍☠️</div>
+  <h1>A Ilha das Trinta Moedas</h1>
+  <p>Ajude o Verso a devolver o tesouro que o mar espalhou pela ilha — contando de <b>6</b> até <b>30</b>!</p>
+  <input id="nome" maxlength="16" placeholder="seu nome de grumete" />
+  <button id="btComecar">Zarpar! ⚓</button></div></div>
+<div class="tela hidden" id="vit"><div class="card"><p id="vnum">6</p><h2 id="vtit"></h2><p id="vsub"></p><p id="vcomp" style="margin-top:10px;padding-top:10px;border-top:2px dashed #e0d3b0;color:#5a4a2a"></p></div></div>
+<div class="tela hidden" id="fim"><div class="card"><div class="em">🏆</div>
+  <h1>Você contou até 30!</h1>
+  <p id="fimsub">De 6 cocos a 30 moedas de ouro — você <b>CONTOU</b> o tempo todo, capitão!</p>
+  <button id="btDeNovo">Jogar de novo 🔁</button></div></div>
+<script type="module">
+import * as THREE from 'three';
+let W=innerWidth,H=innerHeight,RQ=0.62;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(46,W/H,0.1,220);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'low-power'});
+renderer.setPixelRatio(1);
+function resize(){W=innerWidth;H=innerHeight;camera.aspect=W/H;camera.updateProjectionMatrix();
+  renderer.domElement.style.width=W+'px';renderer.domElement.style.height=H+'px';renderer.setSize(Math.round(W*RQ),Math.round(H*RQ),false);}
+document.body.appendChild(renderer.domElement);resize();addEventListener('resize',resize);
+let camAngle=0.75,camElev=0.62;const camDist=26;   // camElev = ângulo vertical (arrastar ↑↓: de cima até quase de lado)
+scene.add(new THREE.AmbientLight(0xffffff,1));   // (só p/ caso; usamos MeshBasic)
+
+// ---------- helpers de voxel ----------
+const FACES=[
+ {n:[0,1,0],c:[[0,1,0],[0,1,1],[1,1,1],[1,1,0]],s:1.00},{n:[0,-1,0],c:[[0,0,1],[0,0,0],[1,0,0],[1,0,1]],s:0.45},
+ {n:[1,0,0],c:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]],s:0.72},{n:[-1,0,0],c:[[0,0,1],[0,1,1],[0,1,0],[0,0,0]],s:0.66},
+ {n:[0,0,1],c:[[1,0,1],[1,1,1],[0,1,1],[0,0,1]],s:0.85},{n:[0,0,-1],c:[[0,0,0],[0,1,0],[1,1,0],[1,0,0]],s:0.58}];
+function mesh(blocks){const set=new Set(blocks.map(b=>b.x+','+b.y+','+b.z));const has=(x,y,z)=>set.has(x+','+y+','+z);
+  const pos=[],col=[],idx=[];let v=0;const cc=new THREE.Color();
+  for(const b of blocks){for(const f of FACES){const nx=f.n[0],ny=f.n[1],nz=f.n[2];
+    if(has(b.x+nx,b.y+ny,b.z+nz))continue;
+    const nA=nx?0:ny?1:2,tU=(nA+1)%3,tV=(nA+2)%3;                    // eixos do plano da face
+    for(const c of f.c){
+      // AMBIENT OCCLUSION: escurece o vértice se há blocos nos cantos (dá profundidade "de jogo")
+      const su=c[tU]?1:-1,sv=c[tV]?1:-1;
+      const oU=[b.x+nx,b.y+ny,b.z+nz];oU[tU]+=su;
+      const oV=[b.x+nx,b.y+ny,b.z+nz];oV[tV]+=sv;
+      const oC=[b.x+nx,b.y+ny,b.z+nz];oC[tU]+=su;oC[tV]+=sv;
+      const s1=has(oU[0],oU[1],oU[2])?1:0,s2=has(oV[0],oV[1],oV[2])?1:0,co=has(oC[0],oC[1],oC[2])?1:0;
+      const ao=(s1&&s2)?0:(3-(s1+s2+co));const k=f.s*(0.60+0.1333*ao);  // 0.60(canto fundo)..1.0
+      pos.push(b.x+c[0],b.y+c[1],b.z+c[2]);cc.setHex(b.col);col.push(cc.r*k,cc.g*k,cc.b*k);}
+    idx.push(v,v+1,v+2,v,v+2,v+3);v+=4;}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setIndex(idx);g.computeBoundingSphere();return g;}
+function shadedBox(w,h,d,hex){const g=new THREE.BoxGeometry(w,h,d);const base=new THREE.Color(hex);
+  const sh=[0.72,0.66,1.0,0.45,0.85,0.58];const cols=new Float32Array(72);
+  for(let f=0;f<6;f++){const s=sh[f];for(let v=0;v<4;v++){const i=(f*4+v)*3;cols[i]=base.r*s;cols[i+1]=base.g*s;cols[i+2]=base.b*s;}}
+  g.setAttribute('color',new THREE.BufferAttribute(cols,3));return g;}
+const MAT=new THREE.MeshBasicMaterial({vertexColors:true});
+function part(w,h,d,hex){return new THREE.Mesh(shadedBox(w,h,d,hex),MAT);}
+const hitMat=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false});
+
+// ---------- OBJETOS contáveis (cada um vira geometria) ----------
+function gCoco(){const m=new Map();const P=(x,y,z,c)=>m.set(x+'|'+y+'|'+z,{x,y,z,col:c});
+  const CB=[0x8a5a2a,0x7c4d22,0x6b4020,0x93602f];
+  for(let x=0;x<7;x++)for(let y=0;y<7;y++)for(let z=0;z<7;z++){const dx=x-3,dy=y-3,dz=z-3;
+    if(dx*dx+dy*dy+dz*dz<=9.3){let c=CB[(x*2+y*3+z)%CB.length];if(dy<-1.5)c=0x5f3a1a;P(x,y,z,c);}}
+  [[2,4],[4,4],[3,2]].forEach(([x,y])=>{for(let z=6;z>=3;z--){if(m.has(x+'|'+y+'|'+z)){P(x,y,z,0x241610);break;}}});
+  P(3,6,3,0xb5824a);P(3,7,3,0xa8763f);const g=mesh([...m.values()]);g.translate(-3,-3,-3);return g;}
+function gGaivota(){const m=[];const P=(x,y,z,c)=>m.push({x,y,z,col:c});
+  for(let x=0;x<3;x++)for(let z=0;z<2;z++){P(x,0,z,0xf2f2f2);P(x,1,z,0xf7f7f7);}   // corpo
+  P(1,2,1,0xf7f7f7);                                                              // cabeça
+  P(1,2,2,0xf2a81e);                                                              // bico
+  P(0,2,1,0x222222);P(2,2,1,0x222222);                                           // olhos
+  P(-1,1,0,0xdcdcdc);P(-1,1,1,0xdcdcdc);P(3,1,0,0xdcdcdc);P(3,1,1,0xdcdcdc);     // asas
+  P(1,0,-1,0xe6e6e6);                                                            // rabo
+  const g=mesh(m);g.translate(-1,-0.5,-0.5);return g;}
+function gTocha(){const m=[];const P=(x,y,z,c)=>m.push({x,y,z,col:c});
+  for(let y=0;y<4;y++)P(0,y,0,y%2?0x6a4a2a:0x5a3d22);                            // cabo
+  P(0,4,0,0xf2661e);P(0,5,0,0xf2a81e);P(0,6,0,0xf7dd55);                         // chama
+  const g=mesh(m);g.translate(0,-2,0);return g;}
+function gBarril(){const m=new Map();const P=(x,y,z,c)=>m.set(x+'|'+y+'|'+z,{x,y,z,col:c});
+  for(let x=0;x<4;x++)for(let y=0;y<5;y++)for(let z=0;z<4;z++){const dx=x-1.5,dz=z-1.5;
+    if(dx*dx+dz*dz<=2.6){let c=(y===0||y===4)?0x6a4a2a:0x8a5a2a;if(y===1||y===3)c=0x3a2614;P(x,y,z,c);}} // aduelas+arcos
+  const g=mesh([...m.values()]);g.translate(-1.5,-2,-1.5);return g;}
+function gMoeda(){const m=[];const P=(x,y,z,c)=>m.push({x,y,z,col:c});
+  for(let x=0;x<5;x++)for(let z=0;z<5;z++){const dx=x-2,dz=z-2;if(dx*dx+dz*dz<=4.6){let c=(dx*dx+dz*dz>3.1)?0xd9a21e:0xf7d24e;P(x,0,z,c);P(x,1,z,c);}}
+  P(2,2,2,0xfff0a0);                                                             // brilho central
+  const g=mesh(m);g.translate(-2,-1,-2);return g;}
+
+// ---------- Verso pirata (rigado) ----------
+function buildVerso(){const g=new THREE.Group();const legH=0.9,armH=0.85;
+  const legGeo=shadedBox(0.5,legH,0.55,0x4aa6cc);legGeo.translate(0,-legH/2,0);
+  const legL=new THREE.Mesh(legGeo,MAT);legL.position.set(-0.42,legH,0);const legR=legL.clone();legR.position.x=0.42;g.add(legL,legR);
+  g.add(part(1.5,1.2,1.1,0x62c8e6));const body=g.children[g.children.length-1];body.position.y=legH+0.6;
+  const coat=part(1.6,1.02,1.2,0x7a2732);coat.position.y=legH+0.52;g.add(coat);
+  for(const by of[legH+0.3,legH+0.68]){const b=part(0.15,0.15,0.08,0xf2c14e);b.position.set(0,by,0.63);g.add(b);}
+  const belt=part(1.63,0.26,1.22,0x3a2614);belt.position.y=legH+0.05;g.add(belt);
+  const buckle=part(0.34,0.24,0.1,0xf2c14e);buckle.position.set(0,legH+0.05,0.64);g.add(buckle);
+  const armGeo=shadedBox(0.42,armH,0.42,0x4aa6cc);armGeo.translate(0,-armH/2,0);
+  const armL=new THREE.Mesh(armGeo,MAT);armL.position.set(-0.86,legH+1.0,0);const armR=armL.clone();armR.position.x=0.86;g.add(armL,armR);
+  const head=part(1.5,1.35,1.35,0x62c8e6);head.position.y=legH+1.88;g.add(head);const hy=head.position.y;
+  const earL=part(0.4,0.6,0.35,0x62c8e6);earL.position.set(-0.55,hy+0.85,0);const earR=earL.clone();earR.position.x=0.55;g.add(earL,earR);
+  const eyeL=part(0.26,0.42,0.12,0x22303a);eyeL.position.set(-0.35,hy+0.02,0.69);g.add(eyeL);
+  const shL=part(0.1,0.13,0.03,0xffffff);shL.position.set(-0.4,hy+0.14,0.76);g.add(shL);
+  const patch=part(0.48,0.56,0.14,0x0e0e12);patch.position.set(0.35,hy+0.02,0.69);g.add(patch);
+  const strap=part(1.6,0.11,0.11,0x0e0e12);strap.position.set(0,hy+0.3,0.66);strap.rotation.z=0.32;g.add(strap);
+  const mouth=part(0.42,0.1,0.1,0x22303a);mouth.position.set(0,hy-0.4,0.69);g.add(mouth);
+  const band=part(1.56,0.42,1.42,0xc9382f);band.position.set(0,hy+0.5,0);g.add(band);
+  const knot=part(0.32,0.32,0.32,0xc9382f);knot.position.set(0.82,hy+0.5,-0.25);g.add(knot);
+  return {group:g,legL,legR,armL,armR,body};}
+function buildByte(){const g=new THREE.Group();
+  const add=(p,x,y,z)=>{p.position.set(x,y,z);g.add(p);return p;};
+  add(part(0.75,0.9,0.6,0x2ec27e),0,0.5,0);
+  add(part(0.62,0.56,0.56,0x37d68a),0,1.12,0.06);
+  add(part(0.3,0.26,0.32,0xf2a626),0,1.02,0.44);
+  add(part(0.26,0.2,0.2,0xd97e18),0,0.88,0.48);
+  add(part(0.12,0.15,0.06,0x111111),0.17,1.2,0.34);
+  const wingL=add(part(0.2,0.66,0.5,0x2478c8),-0.43,0.55,0);
+  const wingR=add(part(0.2,0.66,0.5,0x2478c8),0.43,0.55,0);
+  add(part(0.5,0.2,0.5,0xc9382f),0,0.25,-0.5);
+  add(part(0.42,0.16,0.42,0xf2c14e),0,0.08,-0.82);
+  add(part(0.72,0.2,0.62,0x1a2a4a),0,1.5,0);
+  add(part(0.78,0.1,0.68,0xf2c14e),0,1.4,0);
+  return {group:g,wingL,wingR};}
+const V=buildVerso();const verso=V.group;verso.scale.set(0.6,0.6,0.6);scene.add(verso);
+const B=buildByte();const byte=B.group;byte.scale.set(0.72,0.72,0.72);byte.position.set(1.05,2.3,0.1);verso.add(byte);
+const vshadow=new THREE.Mesh(new THREE.CircleGeometry(1.0,18),new THREE.MeshBasicMaterial({color:0x123a18,transparent:true,opacity:0.26}));
+vshadow.rotation.x=-Math.PI/2;scene.add(vshadow);
+
+// ---------- MUNDO por parada (data-driven) ----------
+const mundoG=new THREE.Group();scene.add(mundoG);
+const N=26,R=11,cx=(N/2)|0,cz=(N/2)|0;
+const OBJ={coco:{g:gCoco(),sc:0.16,y:3.5,ic:'🥥'},gaivota:{g:gGaivota(),sc:0.24,y:3.7,ic:'🐦'},
+  tocha:{g:gTocha(),sc:0.3,y:3.6,ic:'🔥'},barril:{g:gBarril(),sc:0.3,y:3.4,ic:'🛢️'},moeda:{g:gMoeda(),sc:0.2,y:3.25,ic:'🪙'}};
+const TEMA={
+ praia:{t1:0x6fbf49,t2:0x63b043,s1:0xe6d08a,s2:0xdcc47e,bg:0xa9dcf0,fog:[36,84]},
+ enseada:{t1:0x74b86a,t2:0x69ab60,s1:0xcdb27a,s2:0xc0a56e,bg:0x9fd0e8,fog:[36,84]},
+ gruta:{t1:0x6b6f78,t2:0x5e626b,s1:0x4a4e56,s2:0x44474e,bg:0x161d29,fog:[16,50]},
+ conves:{t1:0x8a5a2a,t2:0x7c4d22,s1:0x6b4020,s2:0x5f3a1a,bg:0x8fb8d8,fog:[36,84]},
+ camara:{t1:0x5a4a3a,t2:0x50412f,s1:0x6a5230,s2:0x5f4a2a,bg:0x140f0a,fog:[14,46]}};
+function h_at(x,z){const d=Math.hypot(x-cx,z-cz);if(d<R-2.5)return 3;if(d<R-0.6)return 2;if(d<R)return 1;return 0;}
+function esc(hex,f){const c=new THREE.Color(hex);return new THREE.Color(c.r*f,c.g*f,c.b*f).getHex();}
+let waterM=null,foamM=null;
+function terreno(tm){const w=[];const dentro=(tm===TEMA.gruta||tm===TEMA.camara);
+  for(let x=0;x<N;x++)for(let z=0;z<N;z++){const h=h_at(x,z);if(!h)continue;
+    for(let y=0;y<h;y++){let c;
+      if(y===h-1){c=h>=3?((x+z)%2?tm.t1:tm.t2):((x+z)%2?tm.s1:tm.s2);
+        const rr=(x*73+z*31)%97;if(rr<9)c=esc(c,0.86);else if(rr>91)c=esc(c,1.08);}   // VARIAÇÃO no chão (mancha natural)
+      else c=(h>=3&&y>=1)?0x5a4028:tm.s2;w.push({x,y,z,col:c});}}
+  mundoG.add(new THREE.Mesh(mesh(w),MAT));   // (sem cubos soltos — só a variação de cor do chão)
+  // água + ESPUMA de onda pulsando na beira
+  waterM=new THREE.Mesh(new THREE.PlaneGeometry(110,110),new THREE.MeshBasicMaterial({color:dentro?0x14202e:0x3a93cf}));
+  waterM.rotation.x=-Math.PI/2;waterM.position.set(cx,1.7,cz);mundoG.add(waterM);
+  if(!dentro){const fg=new THREE.BoxGeometry(1,0.16,1);const fmat=new THREE.MeshBasicMaterial({color:0xdff3ff,transparent:true,opacity:0.45});
+    const fm=new THREE.InstancedMesh(fg,fmat,140);let fi=0;const m4=new THREE.Matrix4();
+    for(let x=0;x<N;x++)for(let z=0;z<N;z++){const d=Math.hypot(x-cx,z-cz);if(d>R-0.9&&d<R+0.6&&fi<140){m4.makeTranslation(x,1.78,z);fm.setMatrixAt(fi++,m4);}}
+    fm.count=fi;mundoG.add(fm);foamM=fm;}else foamM=null;}
+let colisores=[];   // {x,z,r} — o Verso NÃO atravessa (bug que o Marcos pegou: passava pelo baú)
+function palmeira(px,pz){const w=[];for(let y=3;y<6;y++)w.push({x:px,y,z:pz,col:0x8a5a2a});
+  for(const[dx,dz]of[[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]])w.push({x:px+dx,y:6,z:pz+dz,col:(dx+dz)%2?0x3e9d54:0x369049});
+  w.push({x:px,y:7,z:pz,col:0x3e9d54});const m=new THREE.Mesh(mesh(w),MAT);mundoG.add(m);
+  colisores.push({x:px+0.5,z:pz+0.5,r:1.0});}
+function bloco(w,h,d,hex,x,y,z,solido){const me=part(w,h,d,hex);me.position.set(x,y,z);mundoG.add(me);
+  if(solido)colisores.push({x:x,z:z,r:Math.max(w,d)*0.55+0.35});
+  return me;}
+// ---- props CAPRICHADOS e PROPORCIONAIS (baú menor — pedido do Marcos) ----
+function colocaBau(px,pz){const w=[];const P=(x,y,z,c)=>w.push({x,y,z,col:c});
+  for(let x=0;x<5;x++)for(let y=0;y<2;y++)for(let z=0;z<3;z++)P(x,y,z,(x===1||x===3)?0x3a2614:0x6a3d25); // corpo + cintas
+  for(let x=0;x<5;x++)for(let z=0;z<3;z++)P(x,2,z,(x===1||x===3)?0x4a2e18:0x7a4527);                     // tampa base
+  for(let x=1;x<4;x++)for(let z=0;z<3;z++)P(x,3,z,0x7a4527);                                             // tampa curva
+  P(2,1,3,0xf2c14e);P(2,2,3,0xd9a21e);P(0,0,3,0xb08a4a);P(4,0,3,0xb08a4a);                               // cadeado + ferragens
+  const g=mesh(w);g.translate(-2.5,0,-1.5);const me=new THREE.Mesh(g,MAT);const S=0.52;                  // PROPORCIONAL
+  me.scale.setScalar(S);me.position.set(px,3,pz);me.userData.baseY=3;mundoG.add(me);
+  colisores.push({x:px,z:pz,r:2.5*S+0.4});return me;}
+function colocaBarco(px,pz){const w=[];const P=(x,y,z,c)=>w.push({x,y,z,col:c});
+  for(let x=0;x<6;x++)for(let z=0;z<3;z++)P(x,0,z,0x5f3a22);                                             // fundo
+  for(let x=0;x<6;x++)for(const z of[0,2])P(x,1,z,0x6a3d25);for(const x of[0,5])P(x,1,1,0x6a3d25);       // laterais
+  P(-1,1,1,0x7a4527);P(6,1,1,0x7a4527);for(let z=0;z<3;z++)P(2,1,z,0x8a5230);                            // bicos + banco
+  const g=mesh(w);g.translate(-2.5,0,-1);const me=new THREE.Mesh(g,MAT);const S=0.7;
+  me.scale.setScalar(S);me.position.set(px,2,pz);me.userData.baseY=2;mundoG.add(me);
+  colisores.push({x:px,z:pz,r:2.5*S+0.4});return me;}
+// ---- FASE 1 (travessia): barco FURADO que a contagem conserta ----
+function colocaBarcoFurado(px,pz){const me=colocaBarco(px,pz);          // reusa o casco
+  me.scale.setScalar(1.0);                                             // MAIOR (mais visível — a criança precisa ver consertar)
+  me.userData.baseY=me.position.y;                                     // nível "consertado" (flutuando)
+  me.position.y-=0.9;me.rotation.z=0.14;                               // começa AFUNDANDO (baixo + tombado)
+  const mast=part(0.2,4.2,0.2,0x6a4a2a);mast.position.set(0.6,2.6,0);me.add(mast);          // mastro
+  const sail=part(0.14,2.4,2.0,0xf3ede0);sail.position.set(0.75,2.9,0);me.add(sail);        // vela
+  const flag=part(0.5,0.34,0.06,0xc9382f);flag.position.set(0.6,4.9,0.3);me.add(flag);      // bandeirinha
+  const furos=[];const N=5;                                            // 5 furos (a fala diz 5 furos, 6 cocos → sobra 1)
+  for(let i=0;i<N;i++){const fx=-1.4+i*0.7;
+    const f=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.22),new THREE.MeshBasicMaterial({color:0x140b06}));
+    f.position.set(fx,0.65,1.12);me.add(f);furos.push(f);}             // buraco escuro na lateral (some ao tapar)
+  return {mesh:me,furos:furos,plugs:0,baseY:me.userData.baseY};}
+function tapaFuro(k){if(!barco1)return;const f=barco1.furos[k-1];if(!f)return;
+  f.material.color.setHex(0x9a6636);f.userData.pop=1;                  // vira tampa (tábua/coco) + "toc"
+  barco1.plugs=k;const b=barco1.mesh;
+  b.position.y=barco1.baseY-0.9+0.9*(k/5);                             // sobe conforme tapa
+  b.rotation.z=0.14*(1-k/5);                                          // e desendireita
+  if(pinca)pinca.wave=0.9;                                            // o Pinça vibra a cada tampa
+  splash(b.position.x,2.0,b.position.z+0.9);}
+function splash(x,y,z){for(let i=0;i<8;i++){const c=part(0.18,0.18,0.18,0xdff3ff);c.position.set(x,y,z);
+  const a=i/8*6.28;c.userData={vx:Math.cos(a)*2.2,vz:Math.sin(a)*2.2,vy:3.2+i*0.15,life:0.7};fx.push(c);scene.add(c);}}
+// o coco CONTADO voa (em arco) até o furo e o tapa — a criança VÊ a conta consertar o barco
+function cocoVoaProBarco(from,k){if(!barco1)return;const f=barco1.furos[k-1];if(!f)return;
+  const to=f.getWorldPosition(new THREE.Vector3());
+  const c=new THREE.Mesh(OBJ.coco.g.clone(),MAT);c.scale.setScalar(0.15);c.position.copy(from);mundoG.add(c);
+  voadores.push({mesh:c,t:0,dur:0.55,from:from.clone(),to:to,k:k});}
+function gCaranguejo(){const m=new Map();const P=(x,y,z,c)=>m.set(x+'|'+y+'|'+z,{x,y,z,col:c});
+  for(let x=0;x<6;x++)for(let z=0;z<4;z++){const dx=x-2.5,dz=z-1.5;if(dx*dx*0.5+dz*dz<6){P(x,0,z,0xc23b28);P(x,1,z,0xe0553a);}}  // carapaça arredondada
+  P(1,2,3,0xffffff);P(4,2,3,0xffffff);P(1,2,4,0x1a1a1a);P(4,2,4,0x1a1a1a);   // 2 olhinhos na frente (branco+pupila)
+  P(2,2,4,0x7a1e12);P(3,2,4,0x7a1e12);                                       // boca/sorriso
+  for(let x=1;x<5;x++)P(x,-1,-1,0xb0331f);for(let x=1;x<5;x++)P(x,-1,4,0xb0331f); // patinhas
+  const g=mesh([...m.values()]);g.translate(-2.5,0.5,-1.5);return g;}
+function colocaPinca(px,pz){const g=new THREE.Group();
+  g.add(new THREE.Mesh(gCaranguejo(),MAT));
+  const cl=part(1.1,0.7,0.8,0xe0553a);cl.position.set(-2.1,0.5,1.0);g.add(cl);const clt=part(0.5,0.9,0.5,0xe0553a);clt.position.set(-2.4,1.1,1.0);g.add(clt); // garra esq (pinça pra cima)
+  const cr=part(1.1,0.7,0.8,0xe0553a);cr.position.set(2.1,0.5,1.0);g.add(cr);const crt=part(0.5,0.9,0.5,0xe0553a);crt.position.set(2.4,1.1,1.0);g.add(crt);  // garra dir
+  g.scale.setScalar(0.6);g.position.set(px,3,pz);g.rotation.y=0.15;mundoG.add(g);   // pequeno e fofo (não domina a cena)
+  colisores.push({x:px,z:pz,r:1.0});g.userData.baseY=3;
+  return {group:g,cl:clt,cr:crt,wave:0};}   // anima as PONTAS das garras (clt/crt)
+function ilhaDistante(px,pz){const w=[];const P=(x,y,z,c)=>w.push({x,y,z,col:c});
+  for(let x=0;x<12;x++)for(let z=0;z<12;z++){const dx=x-5.5,dz=z-5.5;if(dx*dx+dz*dz<30)P(x,0,z,(x+z)%2?0x6fbf49:0x5aa53f);}
+  const g=new THREE.Mesh(mesh(w),MAT);g.scale.setScalar(1.4);g.position.set(px-8,1.9,pz);mundoG.add(g);
+  const t=[];for(let y=1;y<5;y++)t.push({x:0,y,z:0,col:0x8a5a2a});
+  for(const[dx,dz]of[[0,0],[1,0],[-1,0],[0,1],[0,-1]])t.push({x:dx,y:5,z:dz,col:0x3e9d54});
+  const tm=new THREE.Mesh(mesh(t),MAT);tm.scale.setScalar(1.3);tm.position.set(px,3.1,pz);mundoG.add(tm);
+  return g;}
+function colocaFarol(px,pz){const w=[];const P=(x,y,z,c)=>w.push({x:px+x,y:2+y,z:pz+z,col:c});
+  for(let y=0;y<7;y++)for(let x=0;x<2;x++)for(let z=0;z<2;z++)P(x,y,z,(y%2)?0xf3ede0:0xc9382f);           // torre listrada
+  P(0,0,2,0x4a2e18);P(1,0,2,0x4a2e18);                                                                    // porta
+  P(0,3,2,0x1a2a3a);P(1,3,2,0x1a2a3a);                                                                    // janela
+  for(let x=-0.0;x<2;x++)for(let z=0;z<2;z++)P(x,7,z,0xffe08a);                                           // luz
+  for(let x=0;x<2;x++)for(let z=0;z<2;z++)P(x,8,z,0xc9382f);                                              // teto
+  mundoG.add(new THREE.Mesh(mesh(w),MAT));colisores.push({x:px+1,z:pz+1,r:1.9});}
+function sol(dia){ // sol (dia) na fase aberta — "quando for conveniente" (roteiro escolhe o clima)
+  const s=new THREE.Mesh(new THREE.SphereGeometry(2.4,12,12),new THREE.MeshBasicMaterial({color:dia?0xfff2b0:0xdfe8ff}));
+  s.position.set(cx+16,20,cz-14);mundoG.add(s);
+  const gl=new THREE.Mesh(new THREE.SphereGeometry(4.5,12,12),new THREE.MeshBasicMaterial({color:dia?0xfff2b0:0xcdd8f0,transparent:true,opacity:0.25}));
+  gl.position.copy(s.position);mundoG.add(gl);}
+function gaivotasAmbiente(){for(let i=0;i<3;i++){const m=new THREE.Mesh(OBJ.gaivota.g.clone(),MAT);m.scale.setScalar(0.3);
+  m.userData={r:8+i*2,ph:i*2.1,vy:9+i*1.5,sp:0.35+i*0.06};mundoG.add(m);gaivotasVoo.push(m);}}
+function props(idx){sig=null;gaivotasVoo.length=0;barco1=null;pinca=null;
+  if(idx===0){sol(true);palmeira(cx-6,cz-5);palmeira(cx+6,cz+6);palmeira(cx-6,cz+6);
+    barco1=colocaBarcoFurado(cx-4,cz+9);pinca=colocaPinca(cx+2,cz+7);gaivotasAmbiente();   // barco e Pinça SEPARADOS (ilha 2 no horizonte fica p/ depois — estava virando "paredão verde")
+    sig=null;}                                                                                            // fase 1: a reação é o barco consertando + a travessia (custom)
+  else if(idx===1){sol(true);palmeira(cx-7,cz+6);colocaFarol(cx+6,cz-7);gaivotasAmbiente();
+    sig={tipo:'farol',x:cx+7,y:11,z:cz-6,cor:0xfff3a0};}                                                  // FAROL ACENDE
+  else if(idx===2){for(const[sx,sz]of[[cx-5,cz-4],[cx+5,cz+4],[cx,cz-6],[cx+6,cz-3]]){                   // estalactites (teto)
+      for(let y=0;y<3;y++)bloco(1.4-y*0.3,1,1.4-y*0.3,0x6b6f78,sx,10-y,sz);}
+    sig={tipo:'ponte',x:cx,y:3.5,z:cz+7,cor:0xffe08a};}                                                   // PONTE surge
+  else if(idx===3){sol(true);for(let y=3;y<9;y++)bloco(0.7,1,0.7,0x5a3a22,cx,y+0.5,cz-6,y===3);           // mastro
+    bloco(0.6,4,4,0xf3ede0,cx-2.5,7,cz-6);gaivotasAmbiente();
+    for(let z=-8;z<=8;z+=2)bloco(0.5,1.2,0.5,0x6a4a2a,cx-9,3.6,cz+z,true);
+    sig={tipo:'chave',x:cx,y:6,z:cz,cor:0xf2c14e};}                                                       // CHAVE aparece (o capitão solta)
+  else if(idx===4){const bau=colocaBau(cx-2,cz-7);
+    for(const[sx,sz]of[[cx-5,cz-6],[cx+5,cz-6],[cx,cz+6]]){bloco(0.4,3,0.4,0x5a3d22,sx,4.5,sz,true);bloco(0.7,0.7,0.7,0xf7dd55,sx,6.2,sz);}
+    sig={tipo:'hop',mesh:bau,x:cx-2,y:5,z:cz-7,cor:0xf2c14e};}                                            // BAÚ reage (pula + ouro)
+}
+
+// ---------- estado / paradas ----------
+const PARADAS=[
+ {nome:'A Praia dos Cocos',item:'coco',n:6,tema:'praia',
+  abre:'Arrá! Olha o barquinho — tá vazando e o Pinça quer cocos pra tapar os furos… quantos cocos o coqueiro deixou cair? <b>Toca em cada um</b> (ou anda por cima) pra contar!',
+  acerto:'Seis cocos redondinhos! Deu e sobrou pros furos, arrá! O barquinho agradece com um "gluglu" feliz!',
+  comp:'O barco tinha <b>5 furos</b> e você juntou <b>6 cocos</b> — <b>sobrou 1</b>! Tem <b>mais</b> coco que furo. 👍'},
+ {nome:'A Enseada das Gaivotas',item:'gaivota',n:12,tema:'enseada',
+  abre:'O faroleiro só acende quando o bando inteiro pousa no varal… quantas gaivotas já chegaram? Toca em cada uma pra chamar!',
+  acerto:'Doze gaivotas em fila! O farol acendeu num "PLIM" e a ilha brilha no escuro!',
+  comp:'O bando é de <b>12</b> e chegaram <b>12</b> — a <b>mesma</b> quantidade! Por isso o farol acendeu. ✨'},
+ {nome:'A Gruta das Tochas',item:'tocha',n:18,tema:'gruta',
+  abre:'Uh, que escuridão! A ponte só nasce com o túnel iluminado… quantas tochas já estão acesas nessa parede? Toca em cada chama!',
+  acerto:'Dezoito tochas em brasa! A ponte de corda surgiu do escuro pra gente atravessar. Corajoso!',
+  comp:'O túnel tem <b>18 tochas</b> e você acendeu <b>18</b> — <b>igualzinho</b>! Nem faltou, nem sobrou. 🌉'},
+ {nome:'O Convés dos Barris',item:'barril',n:24,tema:'conves',
+  abre:'O capitão jura que o mar levou barris… será? Toca em cada barril do convés e mostra a conta certinha pra ele!',
+  acerto:'Vinte e quatro barris, todos a bordo! O capitão soltou um "AHÁ, honesto esse grumete!" e destrancou o baú!',
+  comp:'O capitão achava que <b>sumiram</b> barris — mas você contou <b>24</b>, todos lá! <b>Nem mais, nem menos</b>. 🔑'},
+ {nome:'A Câmara das Moedas',item:'moeda',n:30,tema:'camara',
+  abre:'Chegamos ao coração da ilha! O baú só fecha com o tesouro inteiro… quantas moedas o mar espalhou por esse chão? Toca em cada uma pra devolver!',
+  acerto:'TRINTA moedas de ouro reunidas! A tampa desceu com um "CLÁ-BUM" e o tesouro voltou pro lugar, capitão Verso!',
+  comp:'O tesouro é de <b>30 moedas</b> e você devolveu <b>30</b> — <b>completo</b>! O baú fechou. 🏆'}];
+
+let paradaIdx=0,contados=0,alvo=6,tentativas=0,t0parada=0,travado=true,balaoTimer=null;
+let objetos=[],hits=[];
+let barco1=null,pinca=null,cutscene=null,olhandoBarco=null;const voadores=[];   // travessia fase 1->2: barco furado, o Pinça, cocos que VOAM pro barco e a cena de navegar
+const turma=new URLSearchParams(location.search).get('turma')||'teste';
+let nome='grumete',saudacao='',saudacaoAudio='',nomeAudio='';
+const el=id=>document.getElementById(id);
+const parEl=el('par'),contEl=el('cont'),falaEl=el('fala');
+const vpos={x:cx,z:cz};
+
+function limparMundo(){
+  for(const c of mundoG.children.slice()){mundoG.remove(c);if(c.geometry&&c.geometry.dispose)c.geometry.dispose();}
+  objetos=[];hits=[];colisores=[];}
+function livre(nx,nz){for(const c of colisores){if(Math.hypot(nx-c.x,nz-c.z)<c.r+0.55)return false;}return true;}
+function espalhar(n){const pts=[];for(let i=0;i<n;i++){const a=i*2.399963;
+  let r=(R-2.2)*Math.sqrt((i+0.6)/n);r=Math.max(2.6,r);   // nunca nasce colado no Verso (senão conta sozinho ao abrir)
+  pts.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r]);}return pts;}
+function montarParada(i){
+  paradaIdx=i;const P=PARADAS[i];const tm=TEMA[P.tema];const od=OBJ[P.item];olhandoBarco=null;voadores.length=0;   // reseta câmera-foco e cocos voando ao trocar de ilha
+  alvo=P.n;contados=0;tentativas=0;travado=false;t0parada=Date.now();
+  scene.background=new THREE.Color(tm.bg);scene.fog=new THREE.Fog(tm.bg,tm.fog[0],tm.fog[1]);
+  limparMundo();terreno(tm);props(i);
+  const hr=P.n>=20?0.95:P.n>=12?1.2:1.5;   // raio de clique menor quando há MUITOS objetos (senão um rouba o clique do vizinho)
+  for(const[px,pz]of espalhar(P.n)){const m=new THREE.Mesh(od.g.clone(),MAT);m.scale.setScalar(od.sc);m.position.set(px,od.y,pz);m.userData={done:false,pop:0,by:od.y,ph:Math.random()*6.28};mundoG.add(m);objetos.push(m);
+    const hb=new THREE.Mesh(new THREE.SphereGeometry(hr,8,6),hitMat);hb.position.set(px,od.y+0.2,pz);hb.userData.idx=objetos.length-1;mundoG.add(hb);hits.push(hb);}
+  vpos.x=cx;vpos.z=cz;verso.position.set(cx,3,cz);
+  parEl.textContent='Parada '+(i+1)+'/5';
+  contEl.textContent=od.ic+' 0/'+P.n;
+  falaEl.innerHTML=(saudacao?'<b>'+saudacao+'</b><br>':'')+P.abre;saudacao='';   // Byte cumprimenta pelo nome / bem-vindo de volta
+  el('balao').style.display='';
+  clearTimeout(balaoTimer);balaoTimer=setTimeout(()=>{el('balao').style.display='none';},8000);  // some sozinho (não atrapalha no celular)
+  // CADEIA de voz (Antonio): nome da criança -> saudação -> o problema. Nunca corta.
+  vozCadeia([nomeAudio,saudacaoAudio],()=>falarByte('vx_p'+(i+1)+'_abre'));
+  nomeAudio='';saudacaoAudio='';
+  ambientePorTema();                                    // mar/vento fora; rumor grave na gruta/câmara
+}
+
+// ---------- som ----------
+let AC=null,mg=null;function initA(){if(AC)return;try{AC=new(window.AudioContext||window.webkitAudioContext)();mg=AC.createGain();mg.gain.value=0.5;mg.connect(AC.destination);iniciarAmbiente();}catch(e){}}
+
+// VOZ do Antonio (arquivos gerados por workflow — nunca a voz do navegador)
+let vozFala=null;
+function voz(id){try{const a=new Audio('audio/'+id+'.mp3');a.volume=0.95;return a;}catch(e){return null;}}
+// BANCO DE NOMES (Antonio): o Byte FALA o nome que a criança digitou. Nome raro
+// (fora do banco) cai só no texto + saudação genérica — nunca voz do navegador.
+const NOMES_VOZ=new Set(['miguel','arthur','gael','heitor','theo','davi','bernardo','gabriel','samuel','joao','pedro','lucas','rafael','henrique','enzo','nicolas','lorenzo','benjamin','matheus','guilherme','anthony','benicio','bento','ravi','noah','isaac','otavio','vicente','levi','murilo','emanuel','caleb','leo','antonio','jose','felipe','bryan','caua','pietro','yuri','bruno','daniel','eduardo','thiago','gustavo','kaique','vitor','caio','erick','nathan','ryan','danilo','luan','ian','rael','igor','diego','marcos','fernando','rodrigo','alexandre','helena','alice','laura','maria','sophia','manuela','maite','liz','cecilia','isabela','luiza','eloa','heloisa','julia','ayla','valentina','lorena','livia','giovanna','antonella','elisa','isadora','mariana','emanuelly','beatriz','rebeca','marina','yasmin','melissa','lara','sarah','clara','bianca','ana','sofia','rafaela','gabriela','vitoria','larissa','amanda','leticia','fernanda','camila','juliana','bruna','carolina','nicole','agatha','milena','catarina','esther','aurora','olivia','emilly','ester','analu','analuz','cecile','duda','malu','pietra','stella','live']);
+// slug do PRIMEIRO nome, igual ao que o workflow gera (NFD, sem acento, minúsculo, só alfanumérico)
+function slugNome(s){return (s||'').trim().split(/\s+/)[0].normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');}
+// toca uma CADEIA de falas em ordem (nome -> saudação -> problema), sem cortar
+function vozCadeia(ids,aoFim){const f=ids.filter(Boolean);(function nxt(k){if(k>=f.length){if(aoFim)aoFim();return;}const g=voz(f[k]);if(!g){nxt(k+1);return;}g.onended=()=>setTimeout(()=>nxt(k+1),200);g.onerror=()=>nxt(k+1);g.play().catch(()=>nxt(k+1));})(0);}   // 200ms de "respirada" entre nome→saudação→problema (não corta)
+// FILA de números: um não corta o outro (a criança escuta "um... dois... três" inteiro)
+let filaNum=[],tocandoNum=false;
+function falarNum(n){filaNum.push(n);if(filaNum.length>4)filaNum=filaNum.slice(-2);if(!tocandoNum)proxNum();}
+function proxNum(){if(!filaNum.length){tocandoNum=false;return;}tocandoNum=true;const a=voz('vx_n'+filaNum.shift());
+  if(!a){tocandoNum=false;return;}a.onended=()=>proxNum();a.play().then(()=>{}).catch(()=>proxNum());}
+function falarByte(id){try{if(vozFala){vozFala.pause();}vozFala=voz(id);if(vozFala)vozFala.play().catch(()=>{});}catch(e){}}
+// NUMERAL grande na tela (a criança associa quantidade ↔ número)
+function mostraNumeral(n){const e=el('num');e.textContent=n;e.classList.remove('go');void e.offsetWidth;e.classList.add('go');}
+
+// AMBIENTE sintetizado (Web Audio, sem arquivo): mar + vento + gaivotas / gruta
+let amb=null;
+function iniciarAmbiente(){if(amb||!AC)return;amb={};
+  const buf=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate);const d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  function ruido(freq,q,vol,lfoHz,lfoAmp){const s=AC.createBufferSource();s.buffer=buf;s.loop=true;
+    const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=freq;f.Q.value=q;
+    const g=AC.createGain();g.gain.value=vol;
+    const lfo=AC.createOscillator();lfo.frequency.value=lfoHz;const lg=AC.createGain();lg.gain.value=lfoAmp;
+    lfo.connect(lg);lg.connect(g.gain);s.connect(f);f.connect(g);g.connect(mg);s.start();lfo.start();
+    return {g,alvo:vol};}
+  amb.mar=ruido(520,0.8,0.075,0.09,0.055);     // vaivém do mar (batendo e voltando — mais audível)
+  amb.espuma=ruido(2400,1.4,0.026,0.13,0.016); // espuma quebrando
+  amb.vento=ruido(480,6,0.02,0.05,0.014);     // vento que sopra e cala
+  amb.grave=ruido(90,2,0.0,0.1,0.004);        // rumor grave (gruta/câmara)
+  // gaivotas de vez em quando (glissando descendente)
+  amb.gaivotaTimer=setInterval(()=>{if(!amb.gaivotasOn)return;if(Math.random()<0.5)return;
+    for(let k=0;k<1+(Math.random()*2|0);k++){setTimeout(()=>{if(!AC)return;
+      const o=AC.createOscillator(),g=AC.createGain();o.type='triangle';
+      const t=AC.currentTime;o.frequency.setValueAtTime(1150,t);o.frequency.exponentialRampToValueAtTime(680,t+0.16);
+      g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(0.04,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
+      o.connect(g);g.connect(mg);o.start(t);o.stop(t+0.25);},k*260);}},9000);
+  ambientePorTema();}
+function ambientePorTema(){if(!amb)return;const tema=PARADAS[paradaIdx].tema;
+  const dentro=(tema==='gruta'||tema==='camara');
+  const alvo={mar:dentro?0.01:0.075,espuma:dentro?0:0.026,vento:dentro?0.008:0.022,grave:dentro?0.024:0.0};
+  for(const k of['mar','espuma','vento','grave'])amb[k].g.gain.setTargetAtTime(alvo[k],AC.currentTime,1.2);
+  amb.gaivotasOn=!dentro;}
+const PENT=[523,587,659,784,880,1047,1175,1319,1397,1568];
+function bip(f,d,ty,v){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain();o.type=ty||'triangle';o.frequency.value=f;
+  const t=AC.currentTime;g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(v||0.25,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+(d||0.2));
+  o.connect(g);g.connect(mg);o.start(t);o.stop(t+(d||0.2)+0.02);}
+function fanfarra(){[523,659,784,1047].forEach((f,k)=>setTimeout(()=>bip(f,0.3,'triangle',0.28),k*120));}
+function trovao(){if(!AC)return;const src=AC.createBufferSource();const buf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);src.buffer=buf;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=300;const g=AC.createGain();g.gain.value=0.5;src.connect(f);f.connect(g);g.connect(mg);src.start();}
+
+// ---------- FESTA + o MUNDO REAGE ao concluir ----------
+let sig=null;const fx=[];const efeitos=[];const gaivotasVoo=[];
+function festaFX(x,y,z,cor){for(let i=0;i<24;i++){const c=part(0.3,0.3,0.3,cor);c.position.set(x,y,z);
+  const a=Math.random()*6.283,sp=2+Math.random()*3.5;c.userData={vx:Math.cos(a)*sp,vy:4+Math.random()*3.5,vz:Math.sin(a)*sp,life:1.4};
+  scene.add(c);fx.push(c);}}
+function reagir(){if(!sig)return;festaFX(sig.x,sig.y,sig.z,sig.cor||0xf2c14e);
+  if(sig.mesh)sig.mesh.userData.hop=1.2;
+  if(sig.tipo==='farol'){const gl=new THREE.Mesh(new THREE.SphereGeometry(2.6,10,10),new THREE.MeshBasicMaterial({color:0xfff3a0,transparent:true,opacity:0.55}));
+    gl.position.set(sig.x,sig.y,sig.z);gl.userData.glow=1;mundoG.add(gl);efeitos.push(gl);
+    scene.background.lerp(new THREE.Color(0x3a5170),0.45);}                              // a ilha clareia (o farol acendeu!)
+  if(sig.tipo==='ponte'){for(let i=0;i<7;i++){const pb=part(1.5,0.45,1.5,i%2?0x8a5a2a:0x7c4d22);pb.position.set(cx-3+i,2.5,cz+7);pb.scale.set(0.01,1,0.01);pb.userData.grow=-i*0.09;efeitos.push(pb);mundoG.add(pb);}}
+  if(sig.tipo==='chave'){const k=new THREE.Group();const kk=part(0.5,0.5,1.8,0xf2c14e);k.add(kk);const kh=part(1.0,1.0,0.4,0xf2c14e);kh.position.z=-1.1;k.add(kh);const kt=part(0.25,0.7,0.25,0xd9a21e);kt.position.set(0,-0.4,0.9);k.add(kt);
+    k.position.set(sig.x,sig.y,sig.z);k.userData.floatB=1;efeitos.push(k);mundoG.add(k);}}
+
+// ---------- contagem ----------
+function salvar(){try{if(window.EduSave){const prog={nome:nome,turma:turma,paradas:{},ultimo:Date.now()};
+  prog.paradas['p'+(paradaIdx+1)]={nome:PARADAS[paradaIdx].nome,alvo:alvo,tentativas:tentativas,tempo:Math.round((Date.now()-t0parada)/1000)};
+  EduSave.carregar(turma,nome,function(e,ant){var base=(ant&&ant.paradas)?ant:prog;if(ant&&ant.paradas){base.paradas['p'+(paradaIdx+1)]=prog.paradas['p'+(paradaIdx+1)];base.ultimo=Date.now();}
+    EduSave.salvar(turma,nome,base,function(){});});}}catch(e){}}
+function contarObj(idx){if(travado)return;const m=objetos[idx];if(!m||m.userData.done)return;m.userData.done=true;m.userData.pop=1;
+  contados++;contEl.textContent=OBJ[PARADAS[paradaIdx].item].ic+' '+contados+'/'+alvo;
+  if(paradaIdx===0&&barco1&&contados<=5){m.userData.pop=0;m.visible=false;cocoVoaProBarco(m.position.clone(),contados);}   // o coco VOA pro barco e tapa o furo (ela vê a conta consertar); o 6º sobra
+  if(contados===1){clearTimeout(balaoTimer);el('balao').style.display='none';}   // começou a contar → balão sai da frente
+  bip(PENT[Math.min(contados-1,PENT.length-1)],0.14,'triangle',0.2);
+  mostraNumeral(contados);                              // o NÚMERO aparece grande (associa quantidade ↔ numeral)
+  falarNum(contados);                                   // e a criança OUVE (Antonio), sem cortar o anterior
+  if(contados>=alvo)vitoria();}
+function mostraCard(P){const v=el('vit');el('vnum').textContent=alvo;el('vtit').textContent='São '+alvo+'!';el('vsub').textContent=P.acerto;el('vcomp').innerHTML=P.comp||'';v.classList.remove('hidden');}
+function iniciarTravessia(){if(!barco1){montarParada(1);return;}   // FASE 1: o Verso embarca e o barco navega pra próxima ilha
+  cutscene={t:0,dur:3.8,boat:barco1.mesh,vz:barco1.mesh.position.z};travado=true;
+  falaEl.innerHTML='<b class="byte"></b>Barco consertado! Bora pra próxima ilha, '+ (nome==='grumete'?'grumete':nome) +'! ⛵';el('balao').style.display='';}
+function vitoria(){travado=true;const P=PARADAS[paradaIdx];clearTimeout(balaoTimer);falaEl.innerHTML=P.acerto;el('balao').style.display='';
+  fanfarra();salvar();
+  if(paradaIdx===0){                                             // ⛵ TRAVESSIA: câmera VAI ao barco → Pinça comemora → navega até a ilha 2
+    olhandoBarco=barco1.mesh;                                     // a câmera vai até o barco (a criança VÊ o conserto de perto)
+    setTimeout(()=>{festaFX(barco1.mesh.position.x,4,barco1.mesh.position.z,0xdff3ff);if(pinca)pinca.wave=2.2;falarByte('vx_p1_ok');},900);   // deixa a câmera chegar, aí comemora
+    setTimeout(()=>mostraCard(P),2600);                          // COMPARAR (faltou/sobrou — EF01MA03): 5 furos, 6 cocos, sobrou 1
+    setTimeout(()=>{el('vit').classList.add('hidden');iniciarTravessia();},5600);   // guarda o card ~3s, depois ZARPA
+    return;}
+  reagir();                                                      // demais fases: o mundo reage e a criança VÊ (card depois)
+  setTimeout(()=>falarByte('vx_p'+(paradaIdx+1)+'_ok'),700);
+  setTimeout(()=>{mostraCard(P);
+    setTimeout(()=>{el('vit').classList.add('hidden');el('balao').style.display='none';
+      if(paradaIdx>=PARADAS.length-1){el('fim').classList.remove('hidden');falarByte('vx_fim');}else{montarParada(paradaIdx+1);}},3200);
+  },3000);}
+
+// ---------- input ----------
+const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;initA();});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+const jm={up:'arrowup',down:'arrowdown',left:'arrowleft',right:'arrowright'};
+document.querySelectorAll('#joy button').forEach(b=>{const k=jm[b.dataset.k];const on=e=>{e.preventDefault();keys[k]=true;initA();},off=e=>{e.preventDefault();keys[k]=false;};
+  b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointerleave',off);});
+const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
+function clique(cxp,cyp){initA();ndc.x=(cxp/W)*2-1;ndc.y=-(cyp/H)*2+1;ray.setFromCamera(ndc,camera);
+  // ignora os JÁ contados e, entre os atingidos, escolhe o MAIS ALINHADO com o clique
+  // (não o primeiro que o raio fura — em campo denso um roubava o clique do vizinho)
+  const alvos=hits.filter(hb=>!objetos[hb.userData.idx].userData.done);
+  const h=ray.intersectObjects(alvos,false);
+  if(h.length){let best=null,bd=1e9;const p1=ray.ray.origin,dir=ray.ray.direction;
+    for(const it of h){const c=it.object.position;const v=c.clone().sub(p1);const t=v.dot(dir);const perp=v.sub(dir.clone().multiplyScalar(t)).length();
+      if(perp<bd){bd=perp;best=it.object;}}
+    contarObj(best.userData.idx);}}
+let dragging=false,lastX=0,lastY=0,movedPx=0;
+renderer.domElement.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;movedPx=0;});
+addEventListener('pointermove',e=>{if(!dragging)return;const dxp=e.clientX-lastX,dyp=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;movedPx+=Math.abs(dxp)+Math.abs(dyp);
+  camAngle-=dxp*0.008;camElev=Math.min(1.45,Math.max(0.32,camElev+dyp*0.006));});   // horizontal gira; vertical olha de cima/de lado (qualquer ângulo)
+addEventListener('pointerup',e=>{if(dragging&&movedPx<8)clique(e.clientX,e.clientY);dragging=false;});
+
+// telas
+let comecou=false;
+el('btComecar').onclick=()=>{initA();nome=(el('nome').value||'grumete').slice(0,16);
+  const sl=slugNome(nome);nomeAudio=NOMES_VOZ.has(sl)?('nome_'+sl):'';   // o Byte FALA o nome (se estiver no banco); senão só no texto
+  function iniciar(volta,start){if(comecou)return;comecou=true;   // blindagem: monta a cena UMA vez só (callback pode disparar 2x)
+    const tn=!!nomeAudio;   // tn = o Byte vai FALAR o nome? então a saudação NÃO repete "grumete/marujo"
+    saudacao=volta?('Bem-vindo de volta, '+nome+'! A ilha lembrou de você. 🏴‍☠️'):('Ôa, '+nome+'! Bem-vindo à ilha! 🏴‍☠️');
+    saudacaoAudio=volta?(tn?'vx_voltou_nome':'vx_voltou'):(tn?'vx_ola_nome':'vx_ola');
+    el('start').classList.add('hidden');montarParada(start);}
+  if(window.EduSave){EduSave.carregar(turma,nome,function(e,ant){var f=(ant&&ant.paradas)?Object.keys(ant.paradas).length:0;iniciar(f>0,f>=PARADAS.length?0:f);});}
+  else iniciar(false,0);};   // "o mundo lembra de mim": retoma na primeira parada nao concluida
+el('btDeNovo').onclick=()=>{el('fim').classList.add('hidden');montarParada(0);};
+
+// ---------- loop ----------
+const mtx=new THREE.Matrix4();let t=0,frames=0,acc=0,last=performance.now();const fpsEl=el('fps');
+function loop(){const now=performance.now(),dt=Math.min(0.05,(now-last)/1000);t+=dt;
+  if(cutscene){cutscene.t+=dt;const c=cutscene,b=c.boat,pr=Math.min(1,c.t/c.dur);   // ⛵ NAVEGANDO até a próxima ilha (sem "cortar" a cena)
+    b.position.z=c.vz+pr*pr*46;b.position.y=barco1.baseY+Math.sin(t*2)*0.12;b.rotation.z=Math.sin(t*1.5)*0.05;   // acelera (pr²) → sai logo pro mar aberto, deixa a ilha pra trás
+    verso.rotation.y=0;verso.position.set(b.position.x,b.position.y+1.5,b.position.z);vshadow.position.set(b.position.x,3.02,b.position.z);
+    if(waterM)waterM.position.y=1.7+Math.sin(t*1.4)*0.05;
+    for(let i=fx.length-1;i>=0;i--){const c2=fx[i],u=c2.userData;c2.position.x+=u.vx*dt;c2.position.z+=u.vz*dt;c2.position.y+=u.vy*dt;u.vy-=13*dt;u.life-=dt;if(u.life<=0){scene.remove(c2);c2.geometry.dispose();fx.splice(i,1);}}
+    camera.position.set(b.position.x,6.5,b.position.z-11);camera.lookAt(b.position.x,3,b.position.z+10);   // baixa e olhando pro mar aberto (à frente)
+    el('fade').style.opacity=pr>0.58?String(Math.min(1,(pr-0.58)/0.42)):'0';
+    if(c.t>=c.dur){cutscene=null;montarParada(1);setTimeout(()=>{el('fade').style.opacity='0';},120);}
+    renderer.render(scene,camera);frames++;acc+=now-last;last=now;if(acc>=500){frames=0;acc=0;}requestAnimationFrame(loop);return;}
+  const cs=Math.sin(camAngle),cc=Math.cos(camAngle);let dx=0,dz=0;
+  if(keys['arrowup']||keys['w']){dx-=cs;dz-=cc;}if(keys['arrowdown']||keys['s']){dx+=cs;dz+=cc;}
+  if(keys['arrowleft']||keys['a']){dx-=cc;dz+=cs;}if(keys['arrowright']||keys['d']){dx+=cc;dz-=cs;}
+  const moving=dx||dz;if(moving&&!travado){const n=Math.hypot(dx,dz);dx/=n;dz/=n;const sp=6*dt;
+    const nx=vpos.x+dx*sp,nz=vpos.z+dz*sp;
+    // colisão com props + borda da ilha; se bater, tenta DESLIZAR num eixo só
+    if(Math.hypot(nx-cx,nz-cz)<R-1.4&&livre(nx,nz)){vpos.x=nx;vpos.z=nz;}
+    else if(Math.hypot(nx-cx,vpos.z-cz)<R-1.4&&livre(nx,vpos.z)){vpos.x=nx;}
+    else if(Math.hypot(vpos.x-cx,nz-cz)<R-1.4&&livre(vpos.x,nz)){vpos.z=nz;}}
+  for(let i=0;i<objetos.length;i++){if(!objetos[i].userData.done&&Math.hypot(objetos[i].position.x-vpos.x,objetos[i].position.z-vpos.z)<1.6)contarObj(i);}
+  verso.position.set(vpos.x,3+(moving?Math.abs(Math.sin(t*9))*0.14:Math.sin(t*2.5)*0.04),vpos.z);
+  if(moving){verso.rotation.y=Math.atan2(dx,dz);const ph=t*9;V.legL.rotation.x=Math.sin(ph)*0.6;V.legR.rotation.x=-Math.sin(ph)*0.6;V.armL.rotation.x=-Math.sin(ph)*0.5;V.armR.rotation.x=Math.sin(ph)*0.5;}
+  else{V.legL.rotation.x*=0.8;V.legR.rotation.x*=0.8;V.armL.rotation.x*=0.8;V.armR.rotation.x*=0.8;}
+  byte.rotation.z=Math.sin(t*3)*0.06;B.wingL.rotation.z=0.15+Math.sin(t*7)*0.12;B.wingR.rotation.z=-0.15-Math.sin(t*7)*0.12;
+  vshadow.position.set(vpos.x,3.02,vpos.z);
+  if(waterM)waterM.position.y=1.7+Math.sin(t*1.4)*0.05;                       // mar respira
+  if(foamM)foamM.material.opacity=0.3+0.2*Math.sin(t*1.4+1.2);               // espuma pulsa com a onda
+  for(const m of objetos){if(m.userData.pop>0){m.userData.pop-=dt*2;m.rotation.y+=dt*8;m.position.y=m.userData.by+Math.sin((1-m.userData.pop)*Math.PI)*1.1;if(m.userData.pop<=0)m.visible=false;}
+    else if(!m.userData.done){m.position.y=m.userData.by+Math.sin(t*2+m.userData.ph)*0.07;}}   // RESPIRO (mundo vivo)
+  // gaivotas voando (ambiente) + de vez em quando cantam (o synth já dispara)
+  for(const g of gaivotasVoo){g.userData.ph+=dt*g.userData.sp;g.position.set(cx+Math.cos(g.userData.ph)*g.userData.r,g.userData.vy+Math.sin(t*2+g.userData.r)*0.5,cz+Math.sin(g.userData.ph)*g.userData.r);g.rotation.y=-g.userData.ph;}
+  // FESTA (partículas) ao concluir
+  for(let i=fx.length-1;i>=0;i--){const c=fx[i];const u=c.userData;c.position.x+=u.vx*dt;c.position.z+=u.vz*dt;c.position.y+=u.vy*dt;u.vy-=13*dt;c.rotation.x+=dt*7;u.life-=dt;
+    if(u.life<=0){scene.remove(c);c.geometry.dispose();fx.splice(i,1);}}
+  // o MUNDO reagindo: hop dos props, glow do farol, ponte crescendo, chave flutuando
+  if(sig&&sig.mesh&&sig.mesh.userData.hop>0){sig.mesh.userData.hop-=dt;sig.mesh.position.y=(sig.mesh.userData.baseY||3)+Math.abs(Math.sin(t*8))*0.5*Math.max(0,sig.mesh.userData.hop);}
+  for(const e of efeitos){const u=e.userData;
+    if(u.glow!==undefined){e.material.opacity=0.35+0.25*Math.sin(t*4);e.scale.setScalar(1+0.08*Math.sin(t*4));}
+    if(u.grow!==undefined){u.grow+=dt*2.2;const s=Math.min(1,Math.max(0.01,u.grow));e.scale.set(s,1,s);}
+    if(u.floatB!==undefined){e.rotation.y+=dt*2;e.position.y=sig.y+Math.sin(t*3)*0.25;}}
+  if(pinca&&pinca.wave>0){pinca.wave-=dt;const w=Math.max(0,Math.min(1,pinca.wave));const a=Math.sin(t*18)*0.6*w;pinca.cl.rotation.z=a;pinca.cr.rotation.z=-a;pinca.group.position.y=(pinca.group.userData.baseY||3)+Math.abs(Math.sin(t*10))*0.5*w;}   // o Pinça acena as garras e PULA de alegria
+  if(barco1){for(const f of barco1.furos){if(f.userData.pop>0){f.userData.pop-=dt*2.2;f.scale.setScalar(1+Math.max(0,f.userData.pop)*0.5);}}}   // "toc" ao tapar cada furo
+  for(let i=voadores.length-1;i>=0;i--){const o=voadores[i];o.t+=dt;const p=Math.min(1,o.t/o.dur);   // o coco voa em ARCO até o furo
+    o.mesh.position.lerpVectors(o.from,o.to,p);o.mesh.position.y+=Math.sin(p*Math.PI)*2.4;o.mesh.rotation.y+=dt*12;o.mesh.rotation.x+=dt*8;
+    if(p>=1){mundoG.remove(o.mesh);o.mesh.geometry.dispose();voadores.splice(i,1);tapaFuro(o.k);}}   // chegou → tapa o furo
+  if(olhandoBarco){const b=olhandoBarco;camera.position.lerp(new THREE.Vector3(b.position.x+1,13,b.position.z-16),0.06);camera.lookAt(b.position.x+1,2.5,b.position.z-0.5);}   // câmera em ângulo MÉDIO/de cima no barco+Pinça (esconde o blocado, mostra o conserto)
+  else{const hd=Math.cos(camElev)*camDist,vy=Math.sin(camElev)*camDist;camera.position.set(vpos.x+cs*hd,2.5+vy,vpos.z+cc*hd);camera.lookAt(vpos.x,2.5,vpos.z);}
+  renderer.render(scene,camera);
+  frames++;acc+=now-last;last=now;
+  if(acc>=500){const fps=Math.round(frames*1000/acc);fpsEl.textContent='FPS: '+fps+' · '+renderer.info.render.triangles+' tri';frames=0;acc=0;window.__fps=fps;
+    if(fps<24&&RQ>0.45){RQ=Math.max(0.45,RQ-0.08);resize();}}
+  window.__stats={calls:renderer.info.render.calls,tris:renderer.info.render.triangles};
+  requestAnimationFrame(loop);}
+loop();window.__ready=true;
+// QA: pular pra uma parada e simular
+window.__parada=(i)=>montarParada(i);
+window.__giro=(a)=>{camAngle+=a;};
+window.__debugRestantes=()=>objetos.map((m,i)=>({i,done:m.userData.done,x:+m.position.x.toFixed(1),z:+m.position.z.toFixed(1)})).filter(o=>!o.done);
+window.__hit=(i)=>{const m=objetos[i];const v=m.position.clone().project(camera);clique((v.x*0.5+0.5)*W,(-v.y*0.5+0.5)*H);};
+window.__cont=()=>contados;
+window.__barcoPlugs=()=>barco1?barco1.plugs:-1;window.__temCutscene=()=>!!cutscene;window.__paradaAtual=()=>paradaIdx;
+</script>
+</body></html>
